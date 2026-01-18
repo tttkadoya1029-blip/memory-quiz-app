@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  prompt        String
+  choiceA       String
+  choiceB       String
+  choiceC       String
+  choiceD       String
+  correctChoice String   // "A" | "B" | "C" | "D"
+  explanation   String?
+  createdAt     DateTime @default(now())
+
+  userState  UserQuestionState?
+  answerLogs AnswerLog[]
+}
+
+model UserQuestionState {
+  id             String    @id @default(cuid())
+  questionId     String    @unique
+  question       Question  @relation(fields: [questionId], references: [id])
+  status         String    @default("new") // "new" | "learning" | "review"
+  step           Int       @default(0)
+  lastAnsweredAt DateTime?
+  nextDueAt      DateTime?
+  correctCount   Int       @default(0)
+  wrongCount     Int       @default(0)
+  streak         Int       @default(0)
+  lastFeeling    String?   // "hard" | "normal" | "easy"
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model AnswerLog {
+  id                       String   @id @default(cuid())
+  questionId               String
+  question                 Question @relation(fields: [questionId], references: [id])
+  answeredAt               DateTime @default(now())
+  selectedChoice           String   // "A" | "B" | "C" | "D"
+  isCorrect                Boolean
+  feeling                  String   // "hard" | "normal" | "easy"
+  scheduledIntervalMinutes Int
+}
