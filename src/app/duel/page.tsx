@@ -10,6 +10,7 @@ import { ChoiceCard } from "@/components/duel/ChoiceCard";
 import { ComboCounter } from "@/components/duel/ComboCounter";
 import { DamageEffect } from "@/components/duel/DamageEffect";
 import { BattleStartOverlay } from "@/components/duel/BattleStartOverlay";
+import { SkillButton } from "@/components/duel/SkillButton";
 import {
   DuelState,
   createInitialDuelState,
@@ -17,6 +18,13 @@ import {
   GAME_CONFIG,
   getEnemyName,
 } from "@/lib/duel-logic";
+import {
+  SkillState,
+  createInitialSkillState,
+  useHintSkill,
+  useTimeStopSkill,
+  resetSkillsForNextQuestion,
+} from "@/lib/skills";
 
 interface Question {
   id: string;
@@ -25,15 +33,17 @@ interface Question {
   choiceB: string;
   choiceC: string;
   choiceD: string;
+  correctChoice?: string;
 }
 
 type ChoiceKey = "A" | "B" | "C" | "D";
-type ChoiceState = "default" | "selected" | "correct" | "wrong";
+type ChoiceState = "default" | "selected" | "correct" | "wrong" | "eliminated";
 
 export default function DuelPage() {
   const router = useRouter();
   const [showBattleStart, setShowBattleStart] = useState(true);
   const [duelState, setDuelState] = useState<DuelState>(createInitialDuelState());
+  const [skillState, setSkillState] = useState<SkillState>(createInitialSkillState());
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +54,7 @@ export default function DuelPage() {
     C: "default",
     D: "default",
   });
-  const [correctChoice, setCorrectChoice] = useState<ChoiceKey | null>(null);
+  const [, setCorrectChoice] = useState<ChoiceKey | null>(null);
   const [showDamageEffect, setShowDamageEffect] = useState(false);
   const [lastDamage, setLastDamage] = useState(0);
   const [lastDamageToPlayer, setLastDamageToPlayer] = useState(false);
@@ -52,6 +62,7 @@ export default function DuelPage() {
   const [showComboPop, setShowComboPop] = useState(false);
   const [isAnswering, setIsAnswering] = useState(false);
   const [enemyName] = useState(() => getEnemyName(1));
+  const [showTimeBonus, setShowTimeBonus] = useState(false);
 
   // Fetch all questions at start
   const fetchQuestions = useCallback(async () => {
@@ -73,8 +84,61 @@ export default function DuelPage() {
     fetchQuestions();
   }, [fetchQuestions]);
 
+  // Hint Skill Handler
+  const handleHintSkill = async () => {
+    if (!currentQuestion || isAnswering || skillState.hint.usesLeft <= 0) return;
+
+    // 正解を取得（APIから）
+    try {
+      const res = await fetch("/api/duel/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionId: currentQuestion.id,
+          selectedChoice: "HINT_CHECK", // 特殊フラグ
+        }),
+      });
+      const data = await res.json();
+      const correct = data.correctChoice as ChoiceKey;
+
+      const { newState, eliminatedChoices } = useHintSkill(
+        skillState,
+        correct,
+        ["A", "B", "C", "D"]
+      );
+
+      setSkillState(newState);
+
+      // 消された選択肢を更新
+      setChoiceStates((prev) => {
+        const updated = { ...prev };
+        eliminatedChoices.forEach((choice) => {
+          updated[choice as ChoiceKey] = "eliminated";
+        });
+        return updated;
+      });
+    } catch (error) {
+      console.error("Failed to use hint:", error);
+    }
+  };
+
+  // Time Stop Skill Handler
+  const handleTimeStopSkill = () => {
+    if (isAnswering || skillState.timeStop.usesLeft <= 0) return;
+
+    const { newState, bonusTime } = useTimeStopSkill(skillState);
+    setSkillState(newState);
+
+    if (bonusTime > 0) {
+      setShowTimeBonus(true);
+      setTimeout(() => setShowTimeBonus(false), 1500);
+    }
+  };
+
   const handleChoiceSelect = async (choice: ChoiceKey) => {
     if (isAnswering || selectedChoice) return;
+    if (choiceStates[choice] === "eliminated") return; // 消された選択肢は選べない
+
     setIsAnswering(true);
     setSelectedChoice(choice);
 
@@ -100,13 +164,13 @@ export default function DuelPage() {
       const correct = result.correctChoice as ChoiceKey;
       setCorrectChoice(correct);
 
-      // Update choice states
-      setChoiceStates({
-        A: correct === "A" ? "correct" : choice === "A" && !isCorrect ? "wrong" : "default",
-        B: correct === "B" ? "correct" : choice === "B" && !isCorrect ? "wrong" : "default",
-        C: correct === "C" ? "correct" : choice === "C" && !isCorrect ? "wrong" : "default",
-        D: correct === "D" ? "correct" : choice === "D" && !isCorrect ? "wrong" : "default",
-      });
+      // Update choice states (keep eliminated state)
+      setChoiceStates((prev) => ({
+        A: prev.A === "eliminated" ? "eliminated" : correct === "A" ? "correct" : choice === "A" && !isCorrect ? "wrong" : "default",
+        B: prev.B === "eliminated" ? "eliminated" : correct === "B" ? "correct" : choice === "B" && !isCorrect ? "wrong" : "default",
+        C: prev.C === "eliminated" ? "eliminated" : correct === "C" ? "correct" : choice === "C" && !isCorrect ? "wrong" : "default",
+        D: prev.D === "eliminated" ? "eliminated" : correct === "D" ? "correct" : choice === "D" && !isCorrect ? "wrong" : "default",
+      }));
 
       // Process game logic
       const { newState, damage, damageToPlayer } = processAnswer(duelState, isCorrect);
@@ -153,6 +217,8 @@ export default function DuelPage() {
             C: "default",
             D: "default",
           });
+          // Reset skill states for next question
+          setSkillState(resetSkillsForNextQuestion(skillState));
           setIsAnswering(false);
         }
       }, 1200);
@@ -208,6 +274,20 @@ export default function DuelPage() {
         show={showDamageEffect}
       />
 
+      {/* Time Bonus Effect */}
+      {showTimeBonus && (
+        <motion.div
+          className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <div className="text-4xl font-black text-cyan-400 neon-text-blue">
+            +5 SECONDS!
+          </div>
+        </motion.div>
+      )}
+
       {/* Main Game UI */}
       <div className="max-w-lg mx-auto px-4 py-6 flex flex-col min-h-screen">
         {/* Enemy Section */}
@@ -245,6 +325,24 @@ export default function DuelPage() {
           />
         </div>
 
+        {/* Skill Buttons */}
+        <div className="flex justify-center gap-4 mb-4">
+          <SkillButton
+            type="hint"
+            usesLeft={skillState.hint.usesLeft}
+            isActive={skillState.hint.isActive}
+            disabled={isAnswering}
+            onUse={handleHintSkill}
+          />
+          <SkillButton
+            type="time_stop"
+            usesLeft={skillState.timeStop.usesLeft}
+            isActive={skillState.timeStop.isActive}
+            disabled={isAnswering}
+            onUse={handleTimeStopSkill}
+          />
+        </div>
+
         {/* Choice Cards */}
         <div className="space-y-3 mb-6 flex-1">
           {(["A", "B", "C", "D"] as const).map((choice, index) => (
@@ -253,7 +351,7 @@ export default function DuelPage() {
               choice={choice}
               text={currentQuestion[`choice${choice}` as keyof Question] as string}
               onClick={() => handleChoiceSelect(choice)}
-              disabled={isAnswering}
+              disabled={isAnswering || choiceStates[choice] === "eliminated"}
               state={choiceStates[choice]}
               delay={index}
             />

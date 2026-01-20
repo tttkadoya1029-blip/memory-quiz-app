@@ -20,6 +20,7 @@ model Question {
   choiceD       String
   correctChoice String   // "A" | "B" | "C" | "D"
   explanation   String?
+  rarity        String   @default("common") // "common" | "rare" | "epic" | "legendary"
   createdAt     DateTime @default(now())
 
   userState  UserQuestionState?
@@ -86,4 +87,74 @@ model BattleResult {
   isVictory      Boolean
 
   createdAt      DateTime @default(now())
+}
+
+// ===== Daily Mission Models =====
+
+model DailyMission {
+  id          String   @id @default(cuid())
+  type        String   // "win_streak" | "correct_answers" | "combo"
+  targetValue Int      // 目標値 (3連勝なら3, 20問正解なら20)
+  rewardCoins Int
+  rewardBadge String?  // バッジID (nullable)
+  description String
+  createdAt   DateTime @default(now())
+
+  progress MissionProgress[]
+}
+
+model MissionProgress {
+  id           String   @id @default(cuid())
+  missionId    String
+  mission      DailyMission @relation(fields: [missionId], references: [id])
+  date         String   // "YYYY-MM-DD" 形式
+  currentValue Int      @default(0)
+  isCompleted  Boolean  @default(false)
+  isClaimed    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([missionId, date])
+}
+
+model Badge {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  iconEmoji   String
+  rarity      String   // "common" | "rare" | "epic" | "legendary"
+  createdAt   DateTime @default(now())
+
+  earnedBadges EarnedBadge[]
+}
+
+model EarnedBadge {
+  id        String   @id @default(cuid())
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt  DateTime @default(now())
+
+  @@unique([badgeId])
+}
+
+// ===== Login Streak Models =====
+
+model LoginStreak {
+  id              String   @id @default(cuid())
+  currentStreak   Int      @default(0)
+  maxStreak       Int      @default(0)
+  lastLoginDate   String?  // "YYYY-MM-DD"
+  weeklyStamps    String   @default("0000000") // 7文字: 0=未, 1=済
+  weekStartDate   String?  // 週の開始日
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ===== Gacha / Card Pack Models =====
+
+model CardPack {
+  id          String   @id @default(cuid())
+  quantity    Int      @default(0)  // 未開封パック数
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
