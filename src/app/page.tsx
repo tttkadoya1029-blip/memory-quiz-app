@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { DailyMissionPanel } from "@/components/missions/DailyMissionPanel";
+import { LoginStreakPanel } from "@/components/login/LoginStreakPanel";
+import { CardPackOpening } from "@/components/gacha/CardPackOpening";
 
 interface Stats {
   dueCount: number;
@@ -22,26 +25,42 @@ export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showMissions, setShowMissions] = useState(false);
+  const [showLoginStreak, setShowLoginStreak] = useState(false);
+  const [showGacha, setShowGacha] = useState(false);
+  const [packCount, setPackCount] = useState(0);
+
+  const fetchData = async () => {
+    try {
+      const [statsRes, collectionRes, packsRes] = await Promise.all([
+        fetch("/api/quiz/stats"),
+        fetch("/api/collection"),
+        fetch("/api/gacha/packs"),
+      ]);
+      const statsData = await statsRes.json();
+      const collectionData = await collectionRes.json();
+      const packsData = await packsRes.json();
+      setStats(statsData);
+      setPlayerStats(collectionData.playerStats);
+      setPackCount(packsData.quantity || 0);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const [statsRes, collectionRes] = await Promise.all([
-          fetch("/api/quiz/stats"),
-          fetch("/api/collection"),
-        ]);
-        const statsData = await statsRes.json();
-        const collectionData = await collectionRes.json();
-        setStats(statsData);
-        setPlayerStats(collectionData.playerStats);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchData();
   }, []);
+
+  const handlePackOpened = () => {
+    setPackCount((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleLoginClaim = () => {
+    fetchData(); // Refresh stats after claiming
+  };
 
   if (loading) {
     return (
@@ -59,10 +78,27 @@ export default function Home() {
 
   return (
     <div className="duel-bg">
+      {/* Modals */}
+      <DailyMissionPanel
+        isOpen={showMissions}
+        onClose={() => setShowMissions(false)}
+      />
+      <LoginStreakPanel
+        isOpen={showLoginStreak}
+        onClose={() => setShowLoginStreak(false)}
+        onClaim={handleLoginClaim}
+      />
+      <CardPackOpening
+        isOpen={showGacha}
+        onClose={() => setShowGacha(false)}
+        packCount={packCount}
+        onPackOpened={handlePackOpened}
+      />
+
       <main className="max-w-lg mx-auto px-4 py-8 flex flex-col min-h-screen">
         {/* Logo / Title */}
         <motion.div
-          className="text-center mb-8"
+          className="text-center mb-6"
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
@@ -76,10 +112,60 @@ export default function Home() {
           <p className="text-gray-400 text-sm">Master words through battle</p>
         </motion.div>
 
+        {/* Quick Action Buttons */}
+        <motion.div
+          className="flex gap-2 mb-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          {/* Login Bonus */}
+          <motion.button
+            onClick={() => setShowLoginStreak(true)}
+            className="flex-1 game-card p-3 text-center"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="text-xl mb-1">📅</div>
+            <div className="text-xs text-white font-bold">Login</div>
+          </motion.button>
+
+          {/* Daily Missions */}
+          <motion.button
+            onClick={() => setShowMissions(true)}
+            className="flex-1 game-card p-3 text-center"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="text-xl mb-1">🎯</div>
+            <div className="text-xs text-white font-bold">Missions</div>
+          </motion.button>
+
+          {/* Card Packs */}
+          <motion.button
+            onClick={() => setShowGacha(true)}
+            className="flex-1 game-card p-3 text-center relative"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="text-xl mb-1">🎴</div>
+            <div className="text-xs text-white font-bold">Packs</div>
+            {packCount > 0 && (
+              <motion.div
+                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs font-bold flex items-center justify-center"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+              >
+                {packCount}
+              </motion.div>
+            )}
+          </motion.button>
+        </motion.div>
+
         {/* Player Stats Card */}
         {playerStats && (
           <motion.div
-            className="game-card p-4 mb-6"
+            className="game-card p-4 mb-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -110,7 +196,7 @@ export default function Home() {
 
         {/* Main Action - DUEL START */}
         <motion.div
-          className="mb-6"
+          className="mb-4"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, type: "spring" }}
@@ -156,7 +242,7 @@ export default function Home() {
 
         {/* Secondary Actions */}
         <motion.div
-          className="grid grid-cols-2 gap-4 mb-6"
+          className="grid grid-cols-2 gap-4 mb-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
@@ -226,7 +312,7 @@ export default function Home() {
 
         {/* Footer */}
         <div className="mt-auto pt-8 text-center text-xs text-gray-600">
-          Word Duel v1.0
+          Word Duel v1.1
         </div>
       </main>
     </div>

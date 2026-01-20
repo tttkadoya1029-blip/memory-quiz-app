@@ -7,7 +7,7 @@ interface ChoiceCardProps {
   text: string;
   onClick: () => void;
   disabled?: boolean;
-  state?: "default" | "selected" | "correct" | "wrong";
+  state?: "default" | "selected" | "correct" | "wrong" | "eliminated";
   delay?: number;
 }
 
@@ -27,6 +27,8 @@ export function ChoiceCard({
         return "game-card game-card-wrong";
       case "selected":
         return "game-card game-card-active";
+      case "eliminated":
+        return "game-card opacity-30 line-through";
       default:
         return "game-card hover:game-card-active";
     }
@@ -40,6 +42,8 @@ export function ChoiceCard({
         return "bg-red-500";
       case "selected":
         return "bg-cyan-500";
+      case "eliminated":
+        return "bg-gray-800";
       default:
         return "bg-gray-600";
     }

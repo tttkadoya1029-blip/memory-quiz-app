@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calculateRank, calculateRewards, Rank } from "@/lib/duel-logic";
+import { calculateRank, calculateRewards } from "@/lib/duel-logic";
 
 interface ResultRequest {
   correctCount: number;
@@ -88,10 +88,35 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Award card pack on victory
+    let earnedPacks = 0;
+    if (isVictory) {
+      earnedPacks = 1;
+      let cardPack = await prisma.cardPack.findFirst();
+      if (!cardPack) {
+        cardPack = await prisma.cardPack.create({ data: { quantity: 1 } });
+      } else {
+        await prisma.cardPack.update({
+          where: { id: cardPack.id },
+          data: { quantity: cardPack.quantity + 1 },
+        });
+      }
+    }
+
+    // Update mission progress
+    await fetch(new URL("/api/missions/update", request.url).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isVictory, correctCount, maxCombo }),
+    }).catch(() => {
+      // Ignore mission update errors
+    });
+
     return NextResponse.json({
       rank,
       earnedExp: exp,
       earnedCoins: coins,
+      earnedPacks,
       totalExp: updatedStats.exp,
       totalCoins: updatedStats.coins,
       battleResultId: battleResult.id,

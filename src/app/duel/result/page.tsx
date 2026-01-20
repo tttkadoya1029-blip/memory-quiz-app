@@ -8,9 +8,10 @@ import { Rank, calculateRank, calculateRewards } from "@/lib/duel-logic";
 function ResultContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [saved, setSaved] = useState(false);
+  const [, setSaved] = useState(false);
   const [earnedExp, setEarnedExp] = useState(0);
   const [earnedCoins, setEarnedCoins] = useState(0);
+  const [earnedPacks, setEarnedPacks] = useState(0);
 
   const correctCount = parseInt(searchParams.get("correct") ?? "0", 10);
   const wrongCount = parseInt(searchParams.get("wrong") ?? "0", 10);
@@ -57,6 +58,7 @@ function ResultContent() {
         const data = await res.json();
         setEarnedExp(data.earnedExp);
         setEarnedCoins(data.earnedCoins);
+        setEarnedPacks(data.earnedPacks || 0);
         setSaved(true);
       } catch (error) {
         console.error("Failed to save result:", error);
@@ -193,6 +195,20 @@ function ResultContent() {
               </motion.div>
               <div className="text-xs text-gray-400">Coins</div>
             </div>
+            {earnedPacks > 0 && (
+              <div className="text-center">
+                <motion.div
+                  className="text-3xl font-bold text-pink-400 flex items-center justify-center gap-1"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 1.2, type: "spring" }}
+                >
+                  +{earnedPacks}
+                  <span className="text-xl">🎴</span>
+                </motion.div>
+                <div className="text-xs text-gray-400">Pack</div>
+              </div>
+            )}
           </div>
         </motion.div>
 
