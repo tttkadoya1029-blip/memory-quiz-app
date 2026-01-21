@@ -29,6 +29,7 @@ import {
 interface Question {
   id: string;
   prompt: string;
+  imageUrl?: string | null;
   choiceA: string;
   choiceB: string;
   choiceC: string;
@@ -317,9 +318,10 @@ export default function DuelPage() {
         </div>
 
         {/* Question Card */}
-        <div className="mb-6">
+        <div className="mb-4">
           <QuestionCard
             prompt={currentQuestion.prompt}
+            imageUrl={currentQuestion.imageUrl}
             questionNumber={duelState.currentQuestion + 1}
             totalQuestions={duelState.totalQuestions}
           />

@@ -15,6 +15,7 @@ export async function GET() {
     const gameQuestions = questions.map((q) => ({
       id: q.id,
       prompt: q.prompt,
+      imageUrl: q.imageUrl,
       choiceA: q.choiceA,
       choiceB: q.choiceB,
       choiceC: q.choiceC,
